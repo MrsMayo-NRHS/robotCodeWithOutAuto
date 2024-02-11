@@ -10,6 +10,8 @@ import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.math.util.Units;
+import edu.wpi.first.math.controller.ArmFeedforward;
+import frc.lib.PIDGains;
 
 /**
  * The Constants class provides a convenient place for teams to hold robot-wide numerical or boolean
@@ -27,6 +29,8 @@ public final class Constants {
         public static final double leftYDeadband = 0.01;
         public static final double rightXDeadband = 0.01;
         public static final double rightYDeadband = 0.01;
+        public static final double armManualDeadband = 0.05;
+        public static final double armManualScale = 0.5;
     }
 
     public static class SwerveConstants {
@@ -134,4 +138,62 @@ public final class Constants {
                             Math.PI);
         }
     }
+
+    public static class ArmConstants {
+        public static final int leftCanID = 16;
+        public static final boolean leftInverted = true;
+
+        public static final int rightCanID = 17;
+        public static final boolean rightInverted = false;
+
+        /** Determines which motor the absolute encoder is connected to.
+         * True means it's the left one, false means it's the right one (as configured above)
+         */
+        public static final boolean encoderConnectedToLeftSparkMax = true;
+
+        public static final int currentLimit = 40;
+
+        public static final double softLimitReverse = -1.15;
+        public static final double softLimitForward = 0.0;
+
+        public static final double encoderGearRatio = 1.0;
+        public static final double positionFactor =
+                encoderGearRatio
+                        * 2.0
+                        * Math.PI; // multiply ThroughBore value by this number and get arm position in radians
+        public static final double velocityFactor = encoderGearRatio * 2.0 * Math.PI / 60.0;
+        public static final double armFreeSpeed = neoFreeSpeedRPM * velocityFactor;
+        public static final double armAbsoluteEncoderZeroOffset =
+                0.0; // radians to offset the encoder reading by
+        public static final ArmFeedforward armFeedforward =
+                new ArmFeedforward(0.0, 3.0, 12.0 / armFreeSpeed, 0.0);
+        public static final PIDGains armPositionGains = new PIDGains(2.5, 0.0, 0.0);
+        public static final TrapezoidProfile.Constraints armMotionConstraint =
+                new TrapezoidProfile.Constraints(2.0, 2.0);
+    }
+
+    public static class IntakeConstants {
+        public static final int canID = 13;
+        public static final boolean motorInverted = false;
+        public static final int currentLimit = 80;
+
+        public static final PIDGains positionGains = new PIDGains(1.0, 0.0, 0.0);
+        public static final double positionTolerance = 0.5;
+
+        public static final double intakePower = 0.7;
+
+        public static final double retractDistance = -3.5;
+        public static double shotFeedTime = 1.0;
+    }
+
+    public static class LauncherConstants {
+        public static final int topCanId = 14;
+        public static final int bottomCanId = 15;
+        public static final boolean topMotorInverted = false;
+        public static final boolean bottomMotorInverted = false;
+
+        public static final int currentLimit = 80;
+    }
+
+    public static final double neoFreeSpeedRPM = 5676;
 }

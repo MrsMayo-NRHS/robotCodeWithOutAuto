@@ -7,17 +7,21 @@ package frc.robot;
 
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
+import edu.wpi.first.wpilibj2.command.RunCommand;
+import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
+import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.robot.Constants.OperatorConstants;
 import frc.robot.commands.Autos;
 import frc.robot.commands.ExampleCommand;
+import frc.robot.commands.FeedLauncherCommand;
 import frc.robot.commands.SwerveControllerDriveCommand;
+import frc.robot.subsystems.ArmSubsystem;
 import frc.robot.subsystems.DriveSubsystem;
 import frc.robot.subsystems.ExampleSubsystem;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
-
+import frc.robot.subsystems.IntakeSubsystem;
+import frc.robot.subsystems.LauncherSubsystem;
 
 
 /**
@@ -31,6 +35,10 @@ public class RobotContainer {
     private final ExampleSubsystem exampleSubsystem = new ExampleSubsystem();
 
     private final DriveSubsystem driveSubsystem = DriveSubsystem.getInstance();
+    private final ArmSubsystem armSubsystem = ArmSubsystem.getInstance();
+    private final IntakeSubsystem intakeSubsystem = IntakeSubsystem.getInstance();
+    private final LauncherSubsystem launcherSubsystem = LauncherSubsystem.getInstance();
+    private double defaultLauncherSpeed = 0.5;
 
     // Replace with CommandPS4Controller or CommandJoystick if needed
     private final CommandXboxController driverController =
@@ -43,6 +51,14 @@ public class RobotContainer {
         configureBindings();
 
         SmartDashboard.putData(driveSubsystem);
+        SmartDashboard.putData(armSubsystem);
+        SmartDashboard.putData(intakeSubsystem);
+        SmartDashboard.putData(launcherSubsystem);
+
+        SmartDashboard.putData("Default Shooter Speed", builder -> builder.addDoubleProperty(
+                "Speed (0-1)", () -> defaultLauncherSpeed,
+                (double speed) -> defaultLauncherSpeed = MathUtil.clamp(speed, 0, 1))
+        );
     }
     
     
@@ -62,9 +78,9 @@ public class RobotContainer {
         
         // Schedule `exampleMethodCommand` when the Xbox controller's B button is pressed,
         // cancelling on release.
-        driverController.b().whileTrue(exampleSubsystem.exampleMethodCommand());
+        // driverController.b().whileTrue(exampleSubsystem.exampleMethodCommand());
 
-        driverController.a().onTrue(Commands.runOnce(() -> driveSubsystem.resetWheelEncoders()));
+        driverController.back().onTrue(Commands.runOnce(() -> driveSubsystem.resetWheelEncoders()));
 
         driveSubsystem.setDefaultCommand(new SwerveControllerDriveCommand(
                 () -> -MathUtil.applyDeadband(driverController.getLeftY(), OperatorConstants.leftYDeadband),
@@ -72,6 +88,35 @@ public class RobotContainer {
                 () -> -driverController.getRightX(),
                 () -> !driverController.getHID().getYButton() // Switch to robot oriented when Y is held
         ));
+
+        // set the arm subsystem to run the "runAutomatic" function continuously when no other command is running
+        armSubsystem.setDefaultCommand(new RunCommand(armSubsystem::runAutomatic, armSubsystem));
+
+        new Trigger(() ->
+                Math.abs(driverController.getRightTriggerAxis() - driverController.getLeftTriggerAxis()) > OperatorConstants.armManualDeadband
+        ).whileTrue(new RunCommand(
+                () ->
+                        armSubsystem.runManual((driverController.getRightTriggerAxis() - driverController.getLeftTriggerAxis()) * OperatorConstants.armManualScale)
+                , armSubsystem));
+
+        // set the intake to stop (0 power) when no other command is running
+        intakeSubsystem.setDefaultCommand(new RunCommand(() -> intakeSubsystem.setPower(0.0), intakeSubsystem));
+
+        driverController.b()
+                .whileTrue(new RunCommand(() -> intakeSubsystem.setPower(-Constants.IntakeConstants.intakePower)));
+
+        driverController.leftBumper()
+                .onTrue(intakeSubsystem.retract());
+
+        // configure the launcher to stop when no other command is running
+        launcherSubsystem.setDefaultCommand(new RunCommand(launcherSubsystem::stopLauncher, launcherSubsystem));
+
+        // launcher controls (button to pre-spin the launcher and button to launch)
+        driverController.rightBumper()
+                .whileTrue(new RunCommand(() -> launcherSubsystem.runLauncher(defaultLauncherSpeed), launcherSubsystem));
+
+        driverController.a()
+                .onTrue(new FeedLauncherCommand(defaultLauncherSpeed));
     }
     
     
