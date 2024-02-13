@@ -14,9 +14,11 @@ import java.util.function.Supplier;
 
 public class SwerveControllerDriveCommand extends Command {
     private final DriveSubsystem driveSubsystem = DriveSubsystem.getInstance();
-    private final Supplier<Double> xSpeedSupplier, ySpeedSupplier, rotationSpeedSupplier;
+    private final Supplier<Double> xSpeedSupplier, ySpeedSupplier, rotationSpeedSupplier, exactAngleSupplier;
     private final Supplier<Boolean> fieldOrientedSupplier;
     private final SlewRateLimiter xLimiter, yLimiter, turningLimiter;
+
+    private Rotation2d targetAngle = null;
 
     private final ProfiledPIDController thetaController;
 
@@ -25,16 +27,18 @@ public class SwerveControllerDriveCommand extends Command {
     * @param xSpeedSupplier A supplier for the x direction of the robot. Should have a deadband applied
     * @param ySpeedSupplier A supplier for the y direction of the robot. Should have a deadband applied
     * @param rotationSpeedSupplier A supplier for the rotation of the robot, between -1 and 1
+    * @param exactAngleSupplier A supplier for the exact angle to spin to. Any input from rotationSpeedSupplier takes precedence
     * @param fieldOrientedSupplier A supplier for whether to drive in the field-oriented or robot-oriented space
     */
     public SwerveControllerDriveCommand(
             Supplier<Double> xSpeedSupplier,
             Supplier<Double> ySpeedSupplier,
             Supplier<Double> rotationSpeedSupplier,
-            Supplier<Boolean> fieldOrientedSupplier) {
+            Supplier<Double> exactAngleSupplier, Supplier<Boolean> fieldOrientedSupplier) {
        this.xSpeedSupplier = xSpeedSupplier;
        this.ySpeedSupplier = ySpeedSupplier;
        this.rotationSpeedSupplier = rotationSpeedSupplier;
+       this.exactAngleSupplier = exactAngleSupplier;
        this.fieldOrientedSupplier = fieldOrientedSupplier;
 
         this.xLimiter = new SlewRateLimiter(SwerveConstants.TeleopConstants.teleDriveMaxAccelerationUnitsPerSecond);
@@ -64,11 +68,25 @@ public class SwerveControllerDriveCommand extends Command {
         double xSpeed = xSpeedSupplier.get();
         double ySpeed = ySpeedSupplier.get();
         double turningSpeed = rotationSpeedSupplier.get();
+        double exactAngle = exactAngleSupplier.get();
 
         xSpeed = xLimiter.calculate(xSpeed) * SwerveConstants.TeleopConstants.teleDriveMaxSpeedMetersPerSecond;
         ySpeed = yLimiter.calculate(ySpeed) * SwerveConstants.TeleopConstants.teleDriveMaxSpeedMetersPerSecond;
         turningSpeed = turningLimiter.calculate(turningSpeed)
             * SwerveConstants.TeleopConstants.teleDriveMaxAngularSpeedRadiansPerSecond;
+
+        if (turningSpeed == 0) {
+            if (exactAngle != -1) {
+                targetAngle = Rotation2d.fromDegrees(exactAngle);
+            }
+            if (targetAngle != null) {
+                turningSpeed = thetaController.calculate(
+                        driveSubsystem.getOdometryHeading().getRadians(),
+                        targetAngle.getRadians());
+            }
+        } else {
+            targetAngle = null;
+        }
 
         ChassisSpeeds chassisSpeeds = (fieldOrientedSupplier.get()) ?
                 ChassisSpeeds.fromFieldRelativeSpeeds(xSpeed, ySpeed, turningSpeed, driveSubsystem.getOdometryHeading()) :

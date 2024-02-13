@@ -70,6 +70,7 @@ public class RobotContainer {
                 () -> -MathUtil.applyDeadband(driverController.getLeftY(), OperatorConstants.leftYDeadband),
                 () -> -MathUtil.applyDeadband(driverController.getLeftX(), OperatorConstants.leftXDeadband),
                 () -> -driverController.getRightX(),
+                () -> (double) driverController.getHID().getPOV(),
                 () -> !driverController.getHID().getYButton() // Switch to robot oriented when Y is held
         ));
     }
